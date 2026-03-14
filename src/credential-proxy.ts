@@ -88,6 +88,15 @@ export function startCredentialProxy(
             headers,
           } as RequestOptions,
           (upRes) => {
+            const quotaHeaders: Record<string, string> = {};
+            for (const [key, val] of Object.entries(upRes.headers)) {
+              if (key.startsWith('anthropic-ratelimit-unified-')) {
+                quotaHeaders[key] = String(val);
+              }
+            }
+            if (Object.keys(quotaHeaders).length > 0) {
+              logger.info({ url: req.url, ...quotaHeaders }, 'quota');
+            }
             res.writeHead(upRes.statusCode!, upRes.headers);
             upRes.pipe(res);
           },
