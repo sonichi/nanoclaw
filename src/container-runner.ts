@@ -22,6 +22,7 @@ import {
   CONTAINER_HOST_GATEWAY,
   CONTAINER_RUNTIME_BIN,
   hostGatewayArgs,
+  isAppleContainerRuntime,
   readonlyMountArgs,
   stopContainer,
 } from './container-runtime.js';
@@ -76,8 +77,18 @@ function buildVolumeMounts(
       readonly: true,
     });
 
-    // .env shadowing is handled inside the container entrypoint via `mount --bind`
-    // (Apple Container does not support file mounts from the host side).
+    if (!isAppleContainerRuntime()) {
+      // Docker supports host-side file mounts, which avoids requiring root
+      // privileges inside the container just to hide the host .env file.
+      const envFile = path.join(projectRoot, '.env');
+      if (fs.existsSync(envFile)) {
+        mounts.push({
+          hostPath: '/dev/null',
+          containerPath: '/workspace/project/.env',
+          readonly: true,
+        });
+      }
+    }
 
     // Main also gets its group folder as the working directory
     mounts.push({
@@ -240,9 +251,10 @@ function buildContainerArgs(
   const hostUid = process.getuid?.();
   const hostGid = process.getgid?.();
   if (hostUid != null && hostUid !== 0 && hostUid !== 1000) {
-    if (isMain) {
+    if (isMain && isAppleContainerRuntime()) {
       // Main containers start as root so the entrypoint can mount --bind
       // to shadow .env. Privileges are dropped via setpriv in entrypoint.sh.
+      args.push('--user', '0:0');
       args.push('-e', `RUN_UID=${hostUid}`);
       args.push('-e', `RUN_GID=${hostGid}`);
     } else {

@@ -62,6 +62,9 @@ RUN printf '#!/bin/bash\nset -e\n\n# Shadow .env so the agent cannot read host s
 # Set ownership to node user (non-root) for writable directories
 RUN chown -R node:node /workspace && chmod 777 /home/node
 
+# Default to non-root. Apple Container main-group runs override this to root.
+USER node
+
 # Set working directory to group workspace
 WORKDIR /workspace/group
 
